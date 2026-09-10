@@ -322,4 +322,61 @@ class Test_Reply_Message extends WP_UnitTestCase {
 		$response = rest_do_request( $request );
 		$this->assertSame( 400, $response->get_status() );
 	}
+
+	/**
+	 * Scenario: Unknown type is rejected.
+	 */
+	public function test_unknown_type_400(): void {
+		$request = $this->make_request(
+			$this->friend_id,
+			array( 'type' => 'foo' ),
+			array( 'X-OTZ-API-Token' => $this->token )
+		);
+		$response = rest_do_request( $request );
+		$this->assertSame( 400, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertSame( 'otzapi_invalid_type', $data['code'] );
+	}
+
+	/**
+	 * Scenario: Image without OrderChatz collaborators returns 501 on fallback path.
+	 */
+	public function test_image_without_orderchatz_501(): void {
+		$request = $this->make_request(
+			$this->friend_id,
+			array(
+				'type'      => 'image',
+				'image_url' => 'https://cdn.example.com/a.jpg',
+			),
+			array( 'X-OTZ-API-Token' => $this->token )
+		);
+		$response = rest_do_request( $request );
+		$this->assertSame( 501, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertSame( 'otzapi_send_unavailable', $data['code'] );
+	}
+
+	/**
+	 * Scenario: Quote fields accepted on text body (fallback push).
+	 */
+	public function test_quote_fields_on_text(): void {
+		$this->mock_line_success( 'push' );
+
+		$request = $this->make_request(
+			$this->friend_id,
+			array(
+				'type'              => 'text',
+				'message'           => 'quoted hi',
+				'quote_token'       => 'qt-rest',
+				'quoted_message_id' => 'mid-rest',
+			),
+			array( 'X-OTZ-API-Token' => $this->token )
+		);
+		$response = rest_do_request( $request );
+		$this->assertSame( 201, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertSame( 'quoted hi', $data['message']['message_content'] );
+	}
+
+
 }
