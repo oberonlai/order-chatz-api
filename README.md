@@ -2,7 +2,7 @@
 
 Companion plugin: REST API for OrderChatz DM conversations (list, detail, **reply** including media + quote). **Does not modify OrderChatz core.**
 
-- **Version:** 1.2.0
+- **Version:** 1.2.1
 - **Text Domain:** `otzapi`
 - **Requires:** WordPress 6.5+, PHP 8.0+, active OrderChatz (`OTZ_VERSION`)
 
@@ -55,6 +55,35 @@ Response shape:
 ### GET `/conversations/{id}`
 
 `{id}` = `otz_users.id`. Returns friend, recent DM messages (empty `group_id`, last 2 month partitions), and up to 5 WooCommerce order summaries when `wp_user_id` is set and WooCommerce is available.
+
+Each item in `messages[]` (and list/detail `last_message`, same normalizer) is read from DB only — no live LINE call. Quote-related fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `line_message_id` | string\|null | LINE message ID for this row |
+| `quote_token` | string\|null | Token to pass on POST when quoting **this** message |
+| `quoted_message_id` | string\|null | If this message was itself a quote reply, parent LINE message id |
+
+Missing DB values are `null` (never invented).
+
+Example message object:
+
+```json
+{
+  "line_user_id": "Uxxxx",
+  "sender_type": "user",
+  "group_id": null,
+  "sent_date": "2026-09-10",
+  "sent_time": "08:00:00",
+  "sent_at": "2026-09-10 08:00:00",
+  "message_type": "text",
+  "message_content": "Hello",
+  "sender_name": "Customer",
+  "line_message_id": "mid-1",
+  "quote_token": "qt-1",
+  "quoted_message_id": null
+}
+```
 
 ### POST `/conversations/{id}/messages`
 
@@ -197,6 +226,10 @@ composer phpcs
 GPL-2.0+
 
 ## Changelog
+
+### 1.2.1
+
+- GET `messages[]` / `last_message` expose `line_message_id`, `quote_token`, `quoted_message_id` from DB.
 
 ### 1.2.0
 - Media reply types: `image`, `video`, `file`, `sticker` on POST `/conversations/{id}/messages`.

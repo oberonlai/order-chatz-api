@@ -4,7 +4,7 @@ Tags: orderchatz, rest-api, conversations, line
 Requires at least: 6.5
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,6 +31,9 @@ Reply prefers OrderChatz LineApiService / MessageStorageService when available; 
 3. Open OrderChatz → API and generate a site token.
 
 == Changelog ==
+
+= 1.2.1 =
+* GET conversations/{id} messages[] (and last_message) include line_message_id, quote_token, quoted_message_id from DB.
 
 = 1.2.0 =
 * Media reply (image/video/file/sticker) + quote reply on POST conversations/{id}/messages (URL-based; 留言=引用).

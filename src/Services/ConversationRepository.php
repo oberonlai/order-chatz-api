@@ -296,7 +296,8 @@ final class ConversationRepository {
 
 		foreach ( $this->message_partition_tables() as $table ) {
 			$sql  = "SELECT line_user_id, sender_type, group_id, sent_date, sent_time,
-					message_type, message_content, sender_name
+					message_type, message_content, sender_name,
+					line_message_id, quote_token, quoted_message_id
 				FROM {$table}
 				WHERE line_user_id = %s AND {$empty_g}
 				ORDER BY sent_date DESC, sent_time DESC
@@ -338,16 +339,34 @@ final class ConversationRepository {
 		$sent_at = trim( (string) ( $row['sent_date'] ?? '' ) . ' ' . (string) ( $row['sent_time'] ?? '' ) );
 
 		return array(
-			'line_user_id'    => (string) ( $row['line_user_id'] ?? '' ),
-			'sender_type'     => (string) ( $row['sender_type'] ?? '' ),
-			'group_id'        => $row['group_id'] ?? null,
-			'sent_date'       => (string) ( $row['sent_date'] ?? '' ),
-			'sent_time'       => (string) ( $row['sent_time'] ?? '' ),
-			'sent_at'         => $sent_at,
-			'message_type'    => (string) ( $row['message_type'] ?? '' ),
-			'message_content' => (string) ( $row['message_content'] ?? '' ),
-			'sender_name'     => (string) ( $row['sender_name'] ?? '' ),
+			'line_user_id'      => (string) ( $row['line_user_id'] ?? '' ),
+			'sender_type'       => (string) ( $row['sender_type'] ?? '' ),
+			'group_id'          => $row['group_id'] ?? null,
+			'sent_date'         => (string) ( $row['sent_date'] ?? '' ),
+			'sent_time'         => (string) ( $row['sent_time'] ?? '' ),
+			'sent_at'           => $sent_at,
+			'message_type'      => (string) ( $row['message_type'] ?? '' ),
+			'message_content'   => (string) ( $row['message_content'] ?? '' ),
+			'sender_name'       => (string) ( $row['sender_name'] ?? '' ),
+			'line_message_id'   => $this->nullable_string( $row['line_message_id'] ?? null ),
+			'quote_token'       => $this->nullable_string( $row['quote_token'] ?? null ),
+			'quoted_message_id' => $this->nullable_string( $row['quoted_message_id'] ?? null ),
 		);
+	}
+
+	/**
+	 * Non-empty string or null (never invent quote/LINE ids).
+	 *
+	 * @param mixed $value Raw DB value.
+	 * @return string|null
+	 */
+	private function nullable_string( $value ): ?string {
+		if ( null === $value ) {
+			return null;
+		}
+		$str = trim( (string) $value );
+
+		return '' === $str ? null : $str;
 	}
 
 	/**
