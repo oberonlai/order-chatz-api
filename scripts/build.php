@@ -19,7 +19,7 @@ echo BLUE . "========================================" . NC . PHP_EOL;
 $pluginSlug = 'order-chatz-api';
 $pluginName = 'OrderChatz API';
 $buildDir = 'build';
-$tempDir = "{$buildDir}/{$pluginName}";
+$tempDir = "{$buildDir}/{$pluginSlug}";
 
 // Get version from main plugin file
 $mainFile = glob('*.php');
@@ -78,6 +78,7 @@ $excludes = array(
     '.tinkersan',
     '.playwright-mcp',
     'scripts',
+    'spec',
     '.agent',
     '.circleci',
     '.travis.yml',
@@ -97,21 +98,14 @@ $excludeString = implode(' ', $excludeParams);
 
 // Copy plugin files
 echo BLUE . "Copying plugin files..." . NC . PHP_EOL;
-exec("rsync -av {$excludeString} . {$tempDir}/");
+exec('rsync -av ' . $excludeString . ' ./ "' . $tempDir . '/"');
 
-// Install production dependencies
-echo BLUE . "Installing production dependencies..." . NC . PHP_EOL;
-exec("cd {$tempDir} && composer install --no-dev --optimize-autoloader --no-interaction");
-
-// Remove unnecessary Composer files
-echo BLUE . "Cleaning Composer files..." . NC . PHP_EOL;
-@unlink("{$tempDir}/composer.json");
-@unlink("{$tempDir}/composer.lock");
+// No production Composer packages required (plugin uses built-in autoloader).
 
 // Create ZIP file
-$zipFile = "{$buildDir}/{$pluginName}-{$version}.zip";
+$zipFile = "{$buildDir}/{$pluginSlug}-{$version}.zip";
 echo BLUE . "Creating ZIP file..." . NC . PHP_EOL;
-exec("cd {$buildDir} && zip -r {$pluginName}-{$version}.zip {$pluginName} -q");
+exec('cd "' . $buildDir . '" && zip -r "' . $pluginSlug . '-' . $version . '.zip" "' . $pluginSlug . '" -q');
 
 // Clean temp directory
 echo BLUE . "Cleaning temp files..." . NC . PHP_EOL;
