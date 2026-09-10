@@ -1,8 +1,8 @@
 # OrderChatz API
 
-Companion plugin: REST API for OrderChatz DM conversations (list, detail, **reply**). **Does not modify OrderChatz core.**
+Companion plugin: REST API for OrderChatz DM conversations (list, detail, **reply** including media + quote). **Does not modify OrderChatz core.**
 
-- **Version:** 1.1.0
+- **Version:** 1.2.0
 - **Text Domain:** `otzapi`
 - **Requires:** WordPress 6.5+, PHP 8.0+, active OrderChatz (`OTZ_VERSION`)
 
@@ -58,25 +58,38 @@ Response shape:
 
 ### POST `/conversations/{id}/messages`
 
-Send an outbound **text** reply to the conversation (media later).
+Send an outbound reply (text or media). **留言／引用回覆** = quote reply via `quote_token` + `quoted_message_id` (there is no separate LINE comment table; customer「備註」is private notes and is **not** this API).
 
-**Body (JSON):**
+**Shared body fields:**
 
 | Field | Required | Description |
 | --- | --- | --- |
-| `message` | yes | Text body (max 5000 chars). Alias: `text`. |
-| `quote_token` | no | LINE quote token |
-| `quoted_message_id` | no | Quoted LINE message id |
+| `type` | no | `text` (default) \| `image` \| `video` \| `file` \| `sticker` |
+| `quote_token` | no | LINE quote token (引用) |
+| `quoted_message_id` | no | Quoted LINE message id (引用) |
+
+**Per-type fields:**
+
+| type | Required fields |
+| --- | --- |
+| `text` | `message` or `text` (max 5000) |
+| `image` | `image_url` (HTTPS) |
+| `video` | `video_url` (HTTPS), `video_name` — LINE gets a **text** summary with watch link (mirrors OrderChatz AJAX) |
+| `file` | `file_url` (HTTPS), `file_name` — LINE gets a **text** summary with download link |
+| `sticker` | `package_id`, `sticker_id` |
 
 **Auth:** same as GET (Application Password `manage_options` **or** site token).
 
 **Behavior:**
 
 1. Prefer OrderChatz public helpers when loaded:
-   - `OrderChatz\Ajax\Message\MessageQueryService::getLatestReplyToken`
-   - `LineApiService::sendReplyMessage` / `sendPushMessage` (reply token → reply API, else push; reply failure falls back to push)
-   - `MessageStorageService::saveOutboundMessage`
-2. If those classes are not available, a **minimal fallback** uses `otz_access_token` to call LINE Messaging API push and writes into the current `{prefix}otz_messages_YYYY_MM` partition (same schema OrderChatz uses). Documented assumption: OrderChatz owns schema/token options; this plugin does not alter core.
+   - `MessageQueryService::getLatestReplyToken` → reply API, else push; reply failure falls back to push
+   - Image: `sendReplyImageMessage` / `sendPushImageMessage` + `saveImageMessage`
+   - File/video: text summary via `sendReplyMessage` / `sendPushMessage` + `saveFileMessage` / `saveVideoMessage`
+   - Sticker: `sendReplyStickerMessage` / `sendPushStickerMessage` + `saveStickerMessage`
+   - Text: `saveOutboundMessage`
+2. Text-only **fallback** (no OrderChatz classes): `otz_access_token` LINE push + monthly `otz_messages_YYYY_MM` write.
+3. Media requires OrderChatz collaborators (`501` if unavailable). **v1 accepts HTTPS URLs only** — no multipart upload.
 
 **Success:** `201`
 
@@ -90,14 +103,14 @@ Send an outbound **text** reply to the conversation (media later).
   "message": {
     "line_user_id": "...",
     "sender_type": "ACCOUNT",
-    "message_type": "text",
-    "message_content": "hello",
+    "message_type": "image",
+    "message_content": "https://cdn.example.com/a.jpg",
     "sender_name": "..."
   }
 }
 ```
 
-**Errors:** `400` invalid/oversized message or missing LINE access token (fallback), `401`/`403` auth, `404` unknown conversation, `502` LINE send failure.
+**Errors:** `400` validation / unknown type, `401`/`403` auth, `404` unknown conversation, `501` media without OrderChatz, `502` LINE send failure.
 
 ## Example curls
 
@@ -114,10 +127,28 @@ curl -sS -u 'admin:APPLICATION_PASSWORD' \
 curl -sS -u 'admin:APPLICATION_PASSWORD' \
   'https://SITE/wp-json/order-chatz/v1/conversations/123'
 
-# Reply
+# Text reply
 curl -sS -u 'admin:APPLICATION_PASSWORD' \
   -H 'Content-Type: application/json' \
   -d '{"message":"Thanks for your order!"}' \
+  'https://SITE/wp-json/order-chatz/v1/conversations/123/messages'
+
+# Quote (留言／引用) reply
+curl -sS -u 'admin:APPLICATION_PASSWORD' \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"text","message":"Got it","quote_token":"QUOTE_TOKEN","quoted_message_id":"LINE_MID"}' \
+  'https://SITE/wp-json/order-chatz/v1/conversations/123/messages'
+
+# Image
+curl -sS -u 'admin:APPLICATION_PASSWORD' \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"image","image_url":"https://cdn.example.com/a.jpg"}' \
+  'https://SITE/wp-json/order-chatz/v1/conversations/123/messages'
+
+# File
+curl -sS -u 'admin:APPLICATION_PASSWORD' \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"file","file_url":"https://cdn.example.com/doc.pdf","file_name":"doc.pdf"}' \
   'https://SITE/wp-json/order-chatz/v1/conversations/123/messages'
 ```
 
@@ -157,14 +188,20 @@ composer phpcs
 
 ## Assumptions / blockers
 
-- Reply prefers OrderChatz send stack; fallback needs `otz_access_token` and an existing monthly messages table.
-- Media reply is out of scope for 1.1.0 (text only).
+- Reply prefers OrderChatz send stack; text fallback needs `otz_access_token` and an existing monthly messages table.
+- Media is **URL-based only** in 1.2.0 (no multipart upload endpoint).
+- 留言回覆 = quote reply only (not 備註).
 
 ## License
 
 GPL-2.0+
 
 ## Changelog
+
+### 1.2.0
+- Media reply types: `image`, `video`, `file`, `sticker` on POST `/conversations/{id}/messages`.
+- Quote / 留言回覆 via `quote_token` + `quoted_message_id` on text and media.
+- Document URL-only media; OrderChatz required for media sends.
 
 ### 1.1.0
 - POST `/conversations/{id}/messages` outbound text reply via OrderChatz helpers (fallback LINE push + DB write).

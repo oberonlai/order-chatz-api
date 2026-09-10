@@ -131,20 +131,75 @@ final class ConversationsController {
 						'required'          => true,
 						'sanitize_callback' => 'absint',
 					),
-					'message'           => array(
-						'description'       => 'Outbound text message body.',
+					'type'              => array(
+						'description'       => 'Message type: text|image|video|file|sticker (default text).',
 						'type'              => 'string',
-						'required'          => true,
+						'required'          => false,
+						'default'           => 'text',
+						'sanitize_callback' => 'sanitize_key',
+					),
+					'message'           => array(
+						'description'       => 'Outbound text body (required when type=text). Alias: text.',
+						'type'              => 'string',
+						'required'          => false,
 						'sanitize_callback' => 'sanitize_textarea_field',
 					),
+					'text'              => array(
+						'description'       => 'Alias for message when type=text.',
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'sanitize_textarea_field',
+					),
+					'image_url'         => array(
+						'description'       => 'HTTPS image URL when type=image.',
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'esc_url_raw',
+					),
+					'video_url'         => array(
+						'description'       => 'HTTPS video URL when type=video.',
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'esc_url_raw',
+					),
+					'video_name'        => array(
+						'description'       => 'Video display name when type=video.',
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'file_url'          => array(
+						'description'       => 'HTTPS file URL when type=file.',
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'esc_url_raw',
+					),
+					'file_name'         => array(
+						'description'       => 'File display name when type=file.',
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'package_id'        => array(
+						'description'       => 'LINE sticker package id when type=sticker.',
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'sticker_id'        => array(
+						'description'       => 'LINE sticker id when type=sticker.',
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'sanitize_text_field',
+					),
 					'quote_token'       => array(
-						'description'       => 'Optional LINE quote token.',
+						'description'       => 'Optional LINE quote token (留言／引用回覆).',
 						'type'              => 'string',
 						'required'          => false,
 						'sanitize_callback' => 'sanitize_text_field',
 					),
 					'quoted_message_id' => array(
-						'description'       => 'Optional quoted LINE message id.',
+						'description'       => 'Optional quoted LINE message id (留言／引用回覆).',
 						'type'              => 'string',
 						'required'          => false,
 						'sanitize_callback' => 'sanitize_text_field',
@@ -195,31 +250,54 @@ final class ConversationsController {
 	}
 
 	/**
-	 * POST /conversations/{id}/messages — outbound text reply.
+	 * POST /conversations/{id}/messages — outbound text or media reply (+ optional quote).
 	 *
 	 * @param WP_REST_Request $request Request.
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function create_message( WP_REST_Request $request ) {
-		$id      = (int) $request->get_param( 'id' );
-		$message = (string) $request->get_param( 'message' );
+		$id   = (int) $request->get_param( 'id' );
+		$body = $request->get_json_params();
+		if ( ! is_array( $body ) ) {
+			$body = array();
+		}
 
-		// JSON body may use "text" as alias.
-		if ( '' === trim( $message ) ) {
-			$body = $request->get_json_params();
-			if ( isset( $body['text'] ) ) {
-				$message = sanitize_textarea_field( (string) $body['text'] );
+		$type = (string) ( $request->get_param( 'type' ) ?? '' );
+		if ( '' === $type && isset( $body['type'] ) ) {
+			$type = sanitize_key( (string) $body['type'] );
+		}
+		if ( '' === $type ) {
+			$type = 'text';
+		}
+
+		$args = array(
+			'message'           => (string) ( $request->get_param( 'message' ) ?? '' ),
+			'text'              => (string) ( $request->get_param( 'text' ) ?? '' ),
+			'image_url'         => (string) ( $request->get_param( 'image_url' ) ?? '' ),
+			'video_url'         => (string) ( $request->get_param( 'video_url' ) ?? '' ),
+			'video_name'        => (string) ( $request->get_param( 'video_name' ) ?? '' ),
+			'file_url'          => (string) ( $request->get_param( 'file_url' ) ?? '' ),
+			'file_name'         => (string) ( $request->get_param( 'file_name' ) ?? '' ),
+			'package_id'        => (string) ( $request->get_param( 'package_id' ) ?? '' ),
+			'sticker_id'        => (string) ( $request->get_param( 'sticker_id' ) ?? '' ),
+			'quote_token'       => (string) ( $request->get_param( 'quote_token' ) ?? '' ),
+			'quoted_message_id' => (string) ( $request->get_param( 'quoted_message_id' ) ?? '' ),
+		);
+
+		// Fill from raw JSON when REST args missed nested/alias fields.
+		foreach ( array_keys( $args ) as $key ) {
+			if ( '' === $args[ $key ] && isset( $body[ $key ] ) ) {
+				if ( in_array( $key, array( 'image_url', 'video_url', 'file_url' ), true ) ) {
+					$args[ $key ] = esc_url_raw( (string) $body[ $key ] );
+				} elseif ( 'message' === $key || 'text' === $key ) {
+					$args[ $key ] = sanitize_textarea_field( (string) $body[ $key ] );
+				} else {
+					$args[ $key ] = sanitize_text_field( (string) $body[ $key ] );
+				}
 			}
 		}
 
-		$result = $this->replies->send_text(
-			$id,
-			$message,
-			array(
-				'quote_token'       => (string) ( $request->get_param( 'quote_token' ) ?? '' ),
-				'quoted_message_id' => (string) ( $request->get_param( 'quoted_message_id' ) ?? '' ),
-			)
-		);
+		$result = $this->replies->send( $id, $type, $args );
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
