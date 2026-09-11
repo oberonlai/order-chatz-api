@@ -7,6 +7,8 @@ Requires PHP: 8.0
 Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
+Author: WPBrewer
+Author URI: https://wpbrewer.com/
 
 REST API for OrderChatz DM conversations (list, detail, reply). Soft-depends on OrderChatz.
 

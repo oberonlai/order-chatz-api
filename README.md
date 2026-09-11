@@ -6,6 +6,8 @@ Companion plugin: REST API for OrderChatz DM conversations (list, detail, **repl
 - **Text Domain:** `otzapi`
 - **Requires:** WordPress 6.5+, PHP 8.0+, active OrderChatz (`OTZ_VERSION`)
 
+**Author:** [WPBrewer](https://wpbrewer.com/)
+
 Ticket: Firstmate FM-93 / Linear WPB-354
 
 ## Install
